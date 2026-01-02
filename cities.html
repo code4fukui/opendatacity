@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<!-- (c)taisukef CC BY  http://fukuno.jig.jp/ -->
+<html>
+<head>
+<meta charset='utf-8'/>
+<title>日本のオープンデータ都市、データ種別</title>
+<meta property="og:image" content="http://fukuno.jig.jp/app/opendatacity/type.png">
+<link rel="apple-touch-icon" href="http://fukuno.jig.jp/app/opendatacity/type.png"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, target-densitydpi=medium-dpi">
+<meta name="format-detection" content="telephone=no">
+<script src="https://fukuno.jig.jp/fukuno.js"></script>
+<script src="gsi_muni_array.js"></script>
+<script src="localgovjp.js"></script>
+
+<script>"use strict";
+
+// 県庁の緯度経度がほしいね...
+// pid:n, cid:n, よみ
+var PREF = [ "北海道", "青森県", "岩手県", "宮城県", "秋田県", "山形県", "福島県", "茨城県", "栃木県", "群馬県", "埼玉県", "千葉県", "東京都", "神奈川県", "新潟県", "富山県", "石川県", "福井県", "山梨県", "長野県", "岐阜県", "静岡県", "愛知県", "三重県", "滋賀県", "京都府", "大阪府", "兵庫県", "奈良県", "和歌山県", "鳥取県", "島根県", "岡山県", "広島県", "山口県", "徳島県", "香川県", "愛媛県", "高知県", "福岡県", "佐賀県", "長崎県", "熊本県", "大分県", "宮崎県", "鹿児島県", "沖縄県" ];
+
+window.onload = function() {
+//dump(LOCALGOV_JP);
+//return;
+	getJSON("http://sabae.club/data/japan/govlist.csv", function(data) {
+		var govlist = data;
+//		dump(govlist);
+//		return;
+		
+		var pick = function(pref, name) {
+			for (var i = 1; i < govlist.length; i++) {
+				var g = govlist[i];
+				if (g[1] == pref) {
+					for (var j = i + 1; j < govlist.length; j++) {
+						var g = govlist[j];
+						if (g[1] == name) {
+							return g;
+						}
+					}
+				}
+			}
+			return null;
+		};
+		
+		var list = [];
+		// prefs
+		
+		
+		// cities
+		for (var id in GSI.MUNI_ARRAY) {
+			var g = GSI.MUNI_ARRAY[id];
+			var gs = g.split(',');
+			var pref = gs[1];
+			var name = gs[3];
+			name = name.replace("　", "");
+			
+			var gl = pick(pref, name);
+			if (gl) {
+//				gs.push(gl[1]);
+				gs[3] = gs[3].replace(/　/g, " ");
+				gs[4] = gs[4].replace(/　/g, " ");
+				gs.push(gl[0]);
+				gl[2] = gl[2].replace(/"/g, '”').trim();
+				gs.push(gl[2]);
+				list.push(gs);
+			} else {
+//				alert(pref + " " + name);
+			}
+		}
+		dump(list);
+//		alert(list.length);
+		
+		toJSON(list);
+		toCSV(list);
+	});
+	
+	var toJSON = function(data) {
+		var s = [];
+		s.push("var LOCALGOV_JP = [");
+		for (var i = 0; i < data.length; i++) {
+			var d = data[i];
+			s.push("\t{ pid:" + d[0] + ", pref:'" + d[1] + "', cid:" + d[2] + ", city:'" + d[3] + "', citykana:'" + d[4] + "', lat:" + d[5] + ", lng:" + d[6] + ", url:'" + d[7] + "', phrase:\"" + d[8] + "\" }" + (i != data.length - 1 ? "," : ""));
+		}
+		s.push("];");
+		get("ta").value = s.join("\n");
+	};
+	var toCSV = function(data) {
+		var s = [];
+		s.push("pid,pref,cid,city,lat,lng,url,phrase");
+		for (var i = 0; i < data.length; i++) {
+			var d = data[i];
+			s.push(d.join(","));
+		}
+		get("ta2").value = s.join("\n");
+	};
+	
+	return;
+
+//	dump(GSI.MUNI_ARRAY);
+	return;
+	
+	/*
+	showCircleGraph(get("canvas"), {
+		b: 30,
+		a: 10,
+		c: 10,
+		d: 8
+	});
+	*/
+
+//	var url = "http://linkdata.org/api/1/rdf1s127i/OPENDATA_Japan_rdf.json";
+//	jsonp(url + "?callback=" + getCallbackMethod(function(rdf) {
+	getOpenDataCity(function(rdf) {
+//		dump(rdf);
+		
+		var data = {};
+		var sum = 0;
+		var ntype = 0;
+		for (var uri in rdf) {
+			var r = rdf[uri];
+			var val = r["http://purl.org/dc/elements/1.1/description"][0].value;
+			var types = val.split("、");
+			for (var i = 0; i < types.length; i++) {
+				var t = types[i];
+				if (data[t]) {
+					data[t]++;
+				} else {
+					data[t] = 1;
+					ntype++;
+				}
+			}
+			sum++;
+		}
+		var data2 = {};
+		var etc = 0;
+		for (var d in data) {
+			var n = data[d];
+			if (n < 5) {
+				etc += n;
+			} else {
+				data2[d] = n;
+			}
+		}
+		data2["その他"] = etc;
+//		dump(data);
+		showCircleGraph(get("canvas"), { data: data2, unit: "" });
+		showTable(get("tbl"), { data: data, unit: "" });
+		get("num").textContent = ntype;
+	});
+};
+
+var showTable = function(div, gdata) {
+	var data = gdata.data;
+	var unit = gdata.unit;
+	var d = [];
+	var sum = 0;
+	for (var n in data) {
+		d.push([ n, data[n] ]);
+		sum += data[n];
+	}
+	d = d.sort(function(a, b) {
+		if (a[1] < b[1])
+			return 1;
+		if (a[1] == b[1])
+			return 0;
+		return -1;
+	});
+	
+	d.push([ "合計", sum ]);
+	var tbl = create("table");
+	for (var i = 0; i < d.length; i++) {
+		var tr = create("tr");
+		var td = create("td");
+		var s = d[i][0];
+		if (s.startsWith("http://") || s.startsWith("https://")) {
+			td.innerHTML = "<a href=" + s + " target=_blank>" + s + "</a>";
+		} else {
+			td.textContent = s;
+		}
+		tr.appendChild(td);
+		td = create("td");
+		td.textContent = d[i][1] + unit;
+		tr.appendChild(td);
+		td = create("td");
+		td.textContent = fixfloat(d[i][1] / sum * 100, 1) + "%";
+		tr.appendChild(td);
+		tbl.appendChild(tr);
+	}
+	div.appendChild(tbl);
+};
+var showCircleGraph = function(c, gdata) {
+	var data = gdata.data;
+	var unit = gdata.unit;
+	var g = getContext(c);
+	var d = [];
+	var sum = 0;
+	for (var n in data) {
+		d.push([ n, data[n] ]);
+		sum += data[n];
+	}
+//	alert(sum);
+	
+	d = d.sort(function(a, b) {
+		if (a[0] == "その他")
+			return 1;
+		if (b[0] == "その他")
+			return -1;
+		if (a[1] < b[1])
+			return 1;
+		if (a[1] == b[1])
+			return 0;
+		return -1;
+	});
+//	dump(d);
+	g.setFont = function(sh) {
+		this.font = "normal " + sh + "px sans-serif";
+	};
+	g.fillTextCenter = function(s, x, y) {
+		var met = this.measureText(s);
+		var sw = met.width;
+		this.fillText(s, x - sw / 2, y);
+	};
+	var timer = null;
+	
+	var animation = function(t, type) {
+		switch (type) {
+			case 0:
+				return t * t;
+			case 1:
+				return 1 - (1 - t) * (1 - t);
+			default:
+				return t;
+		}
+		return t;
+	};
+	
+	var t = 0;
+	g.draw = function() {
+		g.setColor(255, 255, 255);
+		g.fillRect(0, 0, g.cw, g.ch);
+		
+		var cx = g.cw / 2;
+		var cy = g.ch / 2;
+		var r = Math.min(g.cw, g.ch) / 2 * .95;
+		
+		var max = Math.PI * 2 * animation(t / 100, 1);
+		var f = function(dx, dy, s, v) {
+			g.translate(dx, dy);
+			var th = -Math.PI / 2;
+			for (var i = 0; i < d.length; i++) {
+				var dth = d[i][1] / sum * max;
+				var col = hsv2rgb(90 + 320 / d.length * i, s, v);
+				g.setColor(col[0], col[1], col[2]);
+				g.beginPath();
+				g.moveTo(cx, cy);
+				g.arc(cx, cy, r, th, th + dth, false);
+				g.lineTo(cx, cy);
+				g.closePath();
+				g.fill();
+				th += dth;
+			}
+			g.translate(-dx, -dy);
+		};
+		f(8, 8, .6, .5);
+		f(0, 0, .6, 1);
+
+		var fh = 10;
+		g.setFont(fh);
+//		g.setColor(255, 255, 255);
+		g.setColor(0, 0, 0);
+		var th = -Math.PI / 2;
+		for (var i = 0; i < d.length; i++) {
+			var dth = d[i][1] / sum * max;
+			var x = cx + Math.cos(th + dth / 2) * r * .7;
+			var y = cy + Math.sin(th + dth / 2) * r * .7;
+			g.fillTextCenter(d[i][0], x, y - fh / 6);
+			g.fillTextCenter(addComma(d[i][1]) + unit, x, y + fh + fh / 6);
+			g.fillTextCenter(fixfloat(d[i][1] / sum * 100, 1) + "%", x, y + fh * 2 + fh / 6);
+			th += dth;
+		}
+		g.fillTextCenter("総数", cx, cy - fh / 6);
+		g.fillTextCenter(addComma(sum) + unit, cx, cy + fh + fh / 6);
+		if (t >= 100) {
+			clearInterval(timer);
+		}
+	};
+	g.init();
+	if (timer)
+		clearInterval(timer);
+	timer = setInterval(function() {
+		g.draw();
+		t++;
+	}, 20);
+};
+var toTable = function(array) {
+	var tbl = create("table");
+	for (var i = 0; i < array.length; i++) {
+		var dd = array[i];
+		var tr = create("tr");
+		for (var j = 0; j < dd.length; j++) {
+			var td = create("td");
+			td.textContent = dd[j];
+			tr.appendChild(td);
+		}
+		tbl.appendChild(tr);
+	}
+	return tbl;
+};
+
+</script>
+<style>
+body {
+	margin: 8px;
+	box-sizing: border-box; /* width include border */
+	-webkit-text-size-adjust: none; /* for iPhone */
+	text-align: center;
+}
+h1 {
+	font-size: 120%;
+	margin: 0 0;
+}
+table {
+	border-collapse: collapse;
+}
+td {
+	font-size: 70%;
+	border: 1px solid #444;
+	padding: 2px;
+	white-space: nowrap;
+	text-align: right;
+}
+#credit a {
+	color: gray !important;
+	text-decoration: none;
+}
+#credit {
+	margin-top: 1em;
+	font-size: 80%;
+}
+#head {
+	font-size: 80%;
+	margin-bottom: .5em;
+}
+#head a {
+	color: gray !important;
+	text-decoration: none;
+}
+#canvas {
+	display: inline-block;
+	width: 400px;
+	height: 400px;
+}
+#debug {
+	text-align: left;
+}
+#tbl table {
+	display: inline-block;
+}
+@media screen and (min-width: 440px) {
+}
+</style>
+</head>
+<body>
+
+<h1>日本のオープンデータ都市、データ種別</h1>
+
+<textarea id="ta"></textarea>
+<textarea id="ta2"></textarea>
+<canvas id="canvas"></canvas>
+<div id=ccby>日本のオープンデータ都市、データ種数：<span id=num></span></div>
+<div id="tbl"></div>
+<a href=index.html>オープンデータ都市、詳細</a>
+
+<div id='credit'>
+<br>
+DATA: CC BY <a href=http://sparql.odp.jig.jp/ target=_blank>日本のオープンデータ都市一覧 - odp SPARQL Endpoint</a><br>
+APP: <a href='http://fukuno.jig.jp/883'>CC BY 福野泰介／一日一創</a>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,387 @@
+<html>
+<head>
+<meta charset="utf-8"/>
+<title>日本の市町村オープンデータ取組率ダッシュボード （カラム地図7x7 x 政府CIOポータルオープンデータ）</title>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black"/>
+<link rel="apple-touch-icon" href="opendata-kun-mini.png"/>
+<meta property="og:image" content="citiesratio7x7.png">
+<meta name="format-detection" content="telephone=no"/>
+<script src="https://fukuno.jig.jp/fukuno.js"></script>
+<script src="localgovjp/localgovjp.js"></script>
+<script>'use strict'
+
+const getOpenDataCity = function(callback) {
+	const cleanUpURL = function(s) {
+		s = s.replace('"', '')
+		s = s.replace("'", '')
+		return s
+	}
+	const base = 'https://cio.go.jp/sites/default/files/uploads/documents/' 
+//	const enc = "utf-8"
+	const enc = "SJIS" // 変わってた！ 2019.10.16	
+	//const base = 'https://fukuno.jig.jp/app/csv/data/'
+	//const enc = "SJIS"
+	const url1 = base + 'opendata_lg_pref_list.csv'
+	const url2 = base + 'opendata_lg_mani_list.csv'
+	getJSON(url1, function(csv) {
+		//dump(csv)
+		let data = []
+		for (let i = 1; i < csv.length; i++) {
+			const s = csv[i]
+			data[s[1]] = s[2]
+		}
+		
+		//dump(data)
+
+		getJSON(url2, function(csv) {
+			for (let i = 1; i < csv.length; i++) {
+				const s = csv[i]
+				data[s[1]] = s[2] //cleanUpURL(s[2])
+				//if (s[1].endsWith("区"))
+				//	console.log(s[1]) // only 東京
+			}
+			//dump(data)
+			callback(data)
+		}, enc)
+	}, enc)
+}
+const getLocalGovCity = function(callback) {
+	callback(LOCALGOV_JP)
+}
+window.onload = function() {
+	getLocalGovCity(function(govs) {
+		getOpenDataCity(function(odc) {
+			init(govs, odc);
+		})
+	})
+}
+
+let databk
+let odcbk
+
+const init = function(govs, odc) {
+	get("japan").innerHTML = makeJapanHTML() + get("japan").innerHTML;
+	
+//	dump(data);
+	
+	databk = govs
+	odcbk = odc
+	
+	init2014()
+}
+var compareKana = function(a, b) {
+	a = katakanaToHiragana(a.toString())
+	b = katakanaToHiragana(b.toString())
+	if (a < b) {
+		return -1
+	} else if (a > b) {
+		return 1
+	}
+	return 0
+}
+// https://gist.github.com/kawanet/5553478
+/** カタカナをひらがなに変換する関数
+ * @param {String} src - カタカナ
+ * @returns {String} - ひらがな
+ */
+const katakanaToHiragana = function(src) {
+	return src.replace(/[\u30a1-\u30f6]/g, function(match) {
+		var chr = match.charCodeAt(0) - 0x60
+		return String.fromCharCode(chr)
+	})
+}
+const init2014 = function() {
+	let data = databk
+	let odc = odcbk
+	const countPref = function(pref) {
+		let cnt = 0
+		for (let i = 0; i < data.length; i++) {
+			const p = data[i].pref
+			if (p.startsWith(pref)) {
+				const c = data[i].city
+				if (p.startsWith("東京都") || !c.endsWith("区"))
+					cnt++
+			}
+		}
+		return cnt
+	}
+	const countPrefOpenData = function(pref) {
+		let cnt = 0
+		for (let p in odc) {
+			if (p.startsWith(pref))
+				cnt++
+		}
+		return cnt
+	}
+	const getCityOpenData = function(city) {
+		return odc[city]
+	}
+//	dump(data);
+
+	const getContentPref = function(pref) {
+		let d2 = []
+		for (let i = 0; i < data.length; i++) {
+			const dd = data[i]
+			if (dd.pref.startsWith(pref)) {
+				const url = dd.url
+				// const desc = dd.phrase
+				if (pref.startsWith("東京都") || !dd.city.endsWith("区"))
+					d2.push([ url, dd.city, dd.citykana ]);
+			}
+		}
+		d2.sort(function(n, m) {
+			return compareKana(n[2], m[2])
+		})
+		let s = []
+		for (let i = 0; i < d2.length; i++) {
+			const d3 = d2[i];
+			const od = getCityOpenData(pref + d3[1])
+			if (od) {
+				s.push("<a href=" + od + "><ruby>" + d3[1] + "<rt>" + d3[2] + "</rt></ruby></a>")
+			} else {
+				s.push("<ruby>" + d3[1] + "<rt>" + d3[2] + "</rt></ruby>")
+			}
+		}
+		return s.join(", ")
+	}
+	let sum = 0
+	let sumodc = 0
+	for (let i = 1; i <= 47; i++) {
+		const c = get("jp" + i)
+		c.num = i - 1
+		c.onclick = function() {
+			this.sel()
+		}
+		const cnt = countPref(PREF[i - 1])
+		//cnt++ // 県を含む
+		sum += cnt
+		let cntod = countPrefOpenData(PREF[i - 1])
+		cntod-- // 県を含まない
+		sumodc += cntod
+		const r = cntod / cnt
+		c.innerHTML += "<br>" + Math.floor(100 * r) + "%"
+		c.style.background = "rgba(10,60,230," + r + ")"
+		c.style.color = r < .5 ? "black" : "white"
+		c.cnt = cnt
+		c.cntod = cntod
+		c.sel = function() {
+			var pref = PREF[this.num]
+			var od = getCityOpenData(pref, "")
+			if (od) {
+				pref = "<a href=" + od + ">" + pref + "</a>"
+			}
+			get("box").innerHTML = pref + "（" + this.cntod + " / " + this.cnt + "）：" + getContentPref(PREF[this.num])
+		}
+	}
+	
+	let s = ''
+	s += "市町村オープンデータ取組率 " + fixfloat(sumodc / sum * 100, 1) + "% （" + sumodc + "都市 / 都道府県含めると " + (sumodc + 47) + "サイト）<br>"
+	s += "日本の都市数：" + sum + " （都道府県、東京以外の区を含まず）<br>"
+	get("box").innerHTML = s
+	const sjpall = s
+	jpall.onclick = function() {
+		box.innerHTML = sjpall
+	}
+	var r = sumodc / sum;
+	jpall.innerHTML = "市町村オープンデータ取組率<br>" + Math.floor(r * 100) + "%"
+	jpall.style.fontSize = "1.7vw"
+	jpall.style.background = "rgba(30,230,10," + r + ")"
+	jpall.style.color = r < .5 ? "black" : "white"
+};
+
+// --
+var PREF = [ "北海道", "青森県", "岩手県", "宮城県", "秋田県", "山形県", "福島県", "茨城県", "栃木県", "群馬県", "埼玉県", "千葉県", "東京都", "神奈川県", "新潟県", "富山県", "石川県", "福井県", "山梨県", "長野県", "岐阜県", "静岡県", "愛知県", "三重県", "滋賀県", "京都府", "大阪府", "兵庫県", "奈良県", "和歌山県", "鳥取県", "島根県", "岡山県", "広島県", "山口県", "徳島県", "香川県", "愛媛県", "高知県", "福岡県", "佐賀県", "長崎県", "熊本県", "大分県", "宮崎県", "鹿児島県", "沖縄県" ];
+
+
+// from CC0 カラム地図
+// https://hackmd.io/7m2A33zJSWq6DA9lYbvtpQ
+/*
+const JAPAN = `
+山口	島根	鳥取	石川	新潟	青森	北海道
+広島	岡山	兵庫	福井	富山	秋田	岩手
+長崎		大阪	京都	長野	山形	宮城
+佐賀	福岡		滋賀	山梨	群馬	福島
+熊本	宮崎	大分	三重	静岡	埼玉	栃木
+鹿児島	愛媛	香川	奈良	岐阜	東京	茨城
+沖縄	高知	徳島	和歌山	愛知	神奈川	千葉`
+*/
+
+/*
+const JAPAN = `
+山口	島根	鳥取	石川	新潟	青森	北海道
+広島	岡山	兵庫	福井	富山	秋田	岩手
+長崎	福岡	大阪	京都	長野	山形	宮城
+佐賀	宮崎	滋賀	日本	山梨	群馬	福島
+熊本	大分	奈良	日本	静岡	埼玉	栃木
+鹿児島	愛媛	香川	三重	岐阜	東京	茨城
+沖縄	高知	徳島	和歌山	愛知	神奈川	千葉`
+*/
+/*
+const JAPAN = `
+日本	日本	鳥取	石川	新潟	青森	北海道
+山口	島根	兵庫	福井	富山	秋田	岩手
+長崎	岡山	大阪	京都	長野	山形	宮城
+佐賀	福岡	広島	滋賀	山梨	群馬	福島
+熊本	宮崎	大分	三重	静岡	埼玉	栃木
+鹿児島	愛媛	香川	奈良	岐阜	東京	茨城
+沖縄	高知	徳島	和歌山	愛知	神奈川	千葉`
+*/
+const JAPAN = `
+日本	日本	鳥取	石川	富山	青森	北海道
+山口	島根	岡山	福井	新潟	秋田	岩手
+長崎	福岡	広島	滋賀	長野	山形	宮城
+佐賀	大分	兵庫	京都	山梨	群馬	福島
+熊本	宮崎	大阪	奈良	岐阜	埼玉	栃木
+鹿児島	愛媛	香川	和歌山	静岡	東京	茨城
+沖縄	高知	徳島	三重	愛知	神奈川	千葉`
+
+const PREF_S = [ '北海道', '青森', '岩手', '宮城', '秋田', '山形', '福島', '茨城', '栃木', '群馬', '埼玉', '千葉', '東京', '神奈川', '新潟', '富山', '石川', '福井', '山梨', '長野', '岐阜', '静岡', '愛知', '三重', '滋賀', '京都', '大阪', '兵庫', '奈良', '和歌山', '鳥取', '島根', '岡山', '広島', '山口', '徳島', '香川', '愛媛', '高知', '福岡', '佐賀', '長崎', '熊本', '大分', '宮崎', '鹿児島', '沖縄' ]
+
+const makeJapanHTML = function() {
+	let japan = []
+	const japans = JAPAN.trim().split('\n')
+	for (let j of japans) {
+		japan.push(j.split('\t'))
+	}
+	let s = []
+	s.push('<table id=jp0>')
+	let flg = false
+	for (let jpn of japan) {
+		s.push('<tr>')
+		for (let pref of jpn) {
+			const n = PREF_S.indexOf(pref)
+			if (n < 0) {
+				if (!flg) {
+					s.push('<td class=pref id=jpall colspan=2>' + pref + '</td>')
+					flg = true
+				}
+			} else {
+				s.push('<td class=pref id=jp' + (n + 1) + '>' + pref + '</td>')
+			}
+		}
+		s.push('</tr>')
+	}
+	s.push('</table>')
+	return s.join('')
+}
+</script>
+<style>
+body {
+	font-family: sans-serif;
+	text-align: center;
+	margin: 0px;
+	box-sizing: border-box;
+}
+/* japan */
+#japan {
+	display: inline-block;
+	width: 90vw;
+	x-height: 80vw;
+	x-background: red;
+	x-position: relative;
+}
+#jp0 {
+	border-spacing: 1vw;
+	border-collapse: separate;
+}
+#jp0 td {
+	width: calc(90vw / 7);
+	height: calc(60vw / 7);
+	font-size: 3vw;
+	vertical-align: middle;
+	text-align: center;
+	border-radius: .5vw;
+	border: 1px solid #333;
+	margin: 20px;
+}
+/* box */
+#box {
+	display: inline-block;
+	x-position: absolute;
+	top: 67vw;
+	left: 0vw;
+	width: 85.5vw;
+	height: 16vw;
+	x-background: #eee;
+	border: 1px solid #333;
+	border-radius: .5vw;
+	padding: 1vw;
+	margin: 1vw;
+	text-align: left;
+	overflow: auto;
+	font-size: 2vw;
+	line-height: 2.5em;
+}
+#box a {
+	color: #f33 !important;
+}
+.content {
+	position: relative;
+	padding: 10px;
+	x-height: 380px;
+	x-background: #fee;
+}
+/* credit */
+.credit {
+	margin: 20px;
+	text-align: center;
+	font-size: 80%;
+}
+.credit a {
+	color: gray !important;
+}
+#debug {
+	text-align: left;
+}
+textarea {
+	width: 90%;
+	height: 5em;
+}
+h1 {
+	font-size: 3.5vw;
+	margin: 1vw 0 0 0;
+}
+h1 a {
+	color: #000 !important;
+	text-decoration: none;
+}
+#odicon {
+	width: 8vw;
+}
+#tbl table {
+	border-collapse: collapse;
+	margin: 10px 5px;
+}
+#tbl th, #tbl td:nth-child(1), #tbl td:nth-child(3), #tbl td:nth-child(4) {
+	white-space: nowrap;
+}
+#tbl td:nth-child(5) {
+	text-align: center;
+}
+#tbl th, #tbl td {
+	border: 1px solid gray;
+}
+</style>
+</head>
+<body>
+
+<h1><a href=puzzle3x3.html><img src=opendata-kun-mini.png id=odicon align=center></a>日本の自治体オープンデータダッシュボード</h1>
+
+<div class="content">
+<div id="japan"><span id="box"></span></div>
+<div id="tbl"></div>
+</div>
+
+
+<div class="credit">
+APP: CC BY <a href=https://fukuno.jig.jp/2433>福野泰介 - カラム地図でオープンデータ都市ダッシュボード</a><br>
+Base APP: CC BY <a href=https://fukuno.jig.jp/1667>Open Data City Ratio - 福野泰介の一日一創</a><br>
+DATA: CC BY <a href=https://cio.go.jp/policy-opendata>オープンデータ取組済自治体一覧 - オープンデータ | 政府CIOポータル</a>(<a href=https://cio.go.jp/sites/default/files/uploads/documents/opendata_lg_pref_list.csv>都道府県CSV</a>、<a href=https://cio.go.jp/sites/default/files/uploads/documents/opendata_lg_mani_list.csv>市区町村CSV</a>)<br>
+DATA: CC0 <a href=https://github.com/codeforfukui/localgovjp>日本の地方自治体一覧オープンデータ</a><br>
+LAYOUT: CC0 <a href=https://hackmd.io/7m2A33zJSWq6DA9lYbvtpQ>カラム地図</a> (<a href=https://github.com/tabularmaps/hq>カラム地図 / TabularMaps on Github</a> / <a href=https://fukuno.jig.jp/2434>7x7都道府県</a>)<br>
+ICON：<a href=https://www.data.go.jp/about-data-go-jp>ロゴマークについて</a>（<a href=http://www.data.go.jp/ target=_blank>DATA GO JP</a>）<br>
+</div>
+
+</body>
+</html>

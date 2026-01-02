@@ -1,0 +1,146 @@
+
+<!DOCTYPE html><html><head><meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>マイナンバーカード普及状況 with カラム地図</title>
+<link rel="apple-touch-icon" href="mynumber7x7.png"/>
+<meta property="og:image" content="mynumber7x7.png">
+<meta name="format-detection" content="telephone=no"/>
+<script type='module'>
+
+import util from 'https://tabularmaps.github.io/areamap/util.mjs'
+import tabularmaps from './tabularmapsjapan.mjs'
+
+window.onload = async () => {
+	const base = "https://mynumbercard.code4japan.org"
+	const idx = await (await fetch(base + "/feed-1.json")).json();
+	const getLatest = name => base + last(idx.items.find(a => a.name === name).files).href;
+	const last = a => a[a.length - 1];
+	const allpref = await util.fetchCSVtoJSON(getLatest("all_prefectures.csv"));
+	const allcity = await util.fetchCSVtoJSON(getLatest("all_localgovs.csv"));
+	// console.log(allpref);
+	// console.log(allcity);
+	const update1 = allcity[0].算出基準日;
+	const update2 = allpref[0].算出基準日;
+	if (update1 === update2) {
+		lastUpdate.textContent = "算出基準日: " + update1;
+	} else {
+		lastUpdate.textContent = "算出基準日: " + update1 + "(都道府県) " + update2 + "(区市町村)";
+	}
+
+	const getKPI = (pname, cname) => {
+		if (pname === "日本") {
+			const p = allpref.find(a => a.都道府県名 === cname);
+			const kpi = p.人口に対する交付枚数率;
+			return kpi;
+		} else {
+			const pref = pname;
+			const p = allcity.find(a => a.都道府県名 === pref && a.市区町村名.endsWith(cname));
+			if (!p) return Math.NaN;
+			const kpi = parseFloat(p.人口に対する交付枚数率);
+			return kpi;
+		}
+	};
+	const colorTabularMaps = (pname, tmap) => {
+		let min = 100;
+		let max = 0;
+		for (const c of tmap.children) {
+			const cname = c.cellname;
+			if (cname !== "-") {
+				const kpi = getKPI(pname, cname);
+				if (isNaN(kpi)) continue;
+				if (kpi < min) { min = kpi; }
+				if (kpi > max) { max = kpi; }
+			}
+		}
+		for (const c of tmap.children) {
+			const cname = c.cellname;
+			if (cname !== "-") {
+				const kpi = getKPI(pname, cname);
+				if (isNaN(kpi)) continue;
+				const n = (parseFloat(kpi) - min) / (max - min);
+				const h = 200;
+				const s = 80;
+				const l = 95 - n * 95 / 2;
+				const col = `hsl(${h},${s}%,${l}%)`;
+				//const col = `rgba(200,50,50,${l / 100 * .5})`;
+				c.style.backgroundColor = col;
+				c.style.color = "black";
+				//c.appendChild(val);
+				//console.log(kpi, l, col);
+			}
+		}
+	};
+	const setCellContent = (c, pname, cname) => {
+		c.textContent = "";
+		const cr = tag => document.createElement(tag);
+		const div = cr("div");
+		div.className = "name";
+		div.textContent = cname;
+		c.appendChild(div);
+		const div2 = cr("div");
+		div2.className = "val";
+		const kpi = getKPI(pname, cname);
+		div2.textContent = (isNaN(kpi) ? "-" : kpi) + "%";
+		c.appendChild(div2);
+	};
+	tabularmaps.showJapan(setCellContent, colorTabularMaps);
+};
+
+</script>
+<style>
+body {
+	font-family: sans-serif;
+	text-align: center;
+}
+h1 {
+	font-size: 3vw;
+	margin-top: 2vw;
+}
+/* tabularmaps */
+#tmapc span {
+	font-size: 2.0vmax;
+	align-items: center;
+	justify-content: center;
+	border-radius: .5vmax;
+	border: .1vmax solid #333;
+	padding: .2vmax .2vmax;
+	margin: .2vmax;
+}
+/* other */
+#tmtitle {
+	color: black;
+}
+#back {
+	display: none;
+	margin: 1vw;
+	padding: .5vw;
+}
+/* credit */
+.credit {
+	margin: 20px;
+	text-align: center;
+	font-size: 80%;
+}
+.credit a {
+	color: #666 !important;
+}
+</style>
+</head>
+<body>
+
+<h1><span id=tmtitle>日本</span>マイナンバーカード普及状況</h1>
+
+<div id="tmapc"></div>
+<div id=lastUpdate></div>
+<button id='back'>もどる</button>
+
+<div class="credit">
+APP: CC BY <a href=https://fukuno.jig.jp/2923>@taisukef 福野泰介</a> (Base APP: <a href=http://fukuno.jig.jp/2467>カラム地図で辿る</a>)<br>
+LAYOUT: <a href=tabularmaps_japan.csv>TabularMaps Japan - 日本カラム地図 CSV</a> CC0 <a href=https://github.com/tabularmaps/hq>カラム地図 / TabularMaps on Github</a><br>
+DATA: <a href=https://mynumbercard.code4japan.org/>マイナンバーカード普及状況ダッシュボード</a> (<a href=https://mynumbercard.code4japan.org/chant>CSV化 by Code for Japan</a>) ← <a href=https://www.soumu.go.jp/kojinbango_card/>「総務省｜マイナンバー制度とマイナンバーカード」PDF</a><br>
+DATA: <a href=https://github.com/code4fukui/localgovjp>code4fukui/localgovjp: list of local government in Japan (日本の地方自治体一覧オープンデータ)</a> CC0<br>
+LIB: <a href=util.mjs>util.mjs</a> CC BY <a href=https://fukuno.jig.jp/2819>@taisukef</a><br>
+</div>
+
+</body>
+</html>

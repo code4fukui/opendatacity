@@ -1,0 +1,57 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="viewport" content="width=device-width"/>
+
+<title>クイズ Ichigo Q - q4.js</title>
+<link rel="apple-touch-icon" href="q4js-icon.png"/>
+<meta property="og:image" content="q4js-ss.png"/>
+<link rel="stylesheet" type="text/css" href="q2js.css"/>
+<script src=https://fukuno.jig.jp/fukuno.js></script>
+<script src=q2.js></script>
+
+<script>"use strict"
+window.onload = function() {
+	// タイトル
+	const title = "クイズ Ichigo Q"
+	// 問題文、正解、誤答
+	var quiz = [
+		[ "福島県磐梯町", "ばんだいまち", "ばんだいちょう" ],
+		[ "福井県池田町", "いけたぢょう", "いけだまち" ],
+	]
+	// クリアした時
+	var callback = function(pnt) {
+		alert(pnt + "問正解！ 正解率 " + Math.floor(100 * pnt / quiz.length) + "%")
+
+		// 即、ジャンプしたい場合はこちら
+//		location = "https://fukuno.jig.jp/2355"
+
+		// ダイアログ形式で尋ねたい場合はこちら
+		if (confirm("磐梯町 x クイズフレームワーク q2.js についてくわしく知りたい")) {
+			location = "https://fukuno.jig.jp/2355"
+		} else if (confirm("もういちど？")) {
+			location.reload()
+		}
+	}
+	// クイズスタート
+	startQuiz(title, quiz, callback)
+}
+</script>
+</head><body>
+
+<div id=head class=theme>第1問</div>
+<div id=main>
+	<!--<div id=ind class=indcorrect></div>-->
+	<div id=ind class=indcorrect>正解</div>
+	<!--<div id=ind class=indincorrect>不正解</div>-->
+	<div id=q>福島県磐梯町</div>
+	<div id=ans>
+		<div id=ans1>まち</div>
+		<div class=correct id=ans2>ちょう</div>
+	</div>
+</div>
+
+<div id=credit class=theme>
+	<a href=https://fukuno.jig.jp/2752>CC BY fukuno.jig.jp - 2択クイズアプリ framework q2.js</a>
+</div>
+</body></html>

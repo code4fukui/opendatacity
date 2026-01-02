@@ -1,0 +1,94 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="viewport" content="width=device-width"/>
+
+<title>クイズ むらorそん - q2.js</title>
+<link rel="apple-touch-icon" href="muroorson.png"/>
+<meta property="og:image" content="muroorson.png"/>
+<link rel="stylesheet" type="text/css" href="q2js.css"/>
+<script src=https://fukuno.jig.jp/fukuno.js></script>
+<script src="https://code4fukui.github.io/localgovjp/localgovjp.js"></script>
+<script src=q2.js></script>
+
+<script>"use strict"
+window.onload = async function() {
+	if (!LOCALGOV_JP)
+		return
+
+	// タイトル
+	const title = "クイズ むらorそん"
+
+	// 調査
+	let nmura = 0
+	let nson = 0
+	for (const gov of LOCALGOV_JP) {
+		if (gov.citykana.endsWith("むら")) {
+			nmura++
+		} else if (gov.citykana.endsWith("そん")) {
+			nson++
+		}
+	}
+	console.log("むら", nmura, "そん", nson, "そん率", nson / (nmura + nson) * 100, "%")
+	
+	shuffle(LOCALGOV_JP)
+
+
+	// 問題文、正解、誤答
+	// まち、か、ちょうで終わるものを 10問 抽出
+	const quiz = []
+	let n = 10
+	let nqmura = 0
+	let nqson = 0
+	for (const gov of LOCALGOV_JP) {
+		if (gov.citykana.endsWith("むら") && nqmura < n / 2) {
+			quiz.push([ gov.pref + " " + gov.city, gov.citykana, gov.citykana.substring(0, gov.citykana.length - 2) + "そん", true ])
+			nqmura++
+		} else if (gov.citykana.endsWith("そん") && nqson < n / 2) {
+			quiz.push([ gov.pref + " " + gov.city, gov.citykana.substring(0, gov.citykana.length - 2) + "むら", gov.citykana, false ])
+			nqson++
+		}
+		if (quiz.length == n)
+			break
+//		console.log(gov)
+	}
+	
+//	quiz.push( [ "福島県 磐梯町", "ばんだいまち", "ばんだいちょう", true ])
+
+	// クリアした時
+	var callback = function(pnt) {
+		alert(pnt + "問正解！ 正解率 " + Math.floor(100 * pnt / quiz.length) + "%")
+
+		// 即、ジャンプしたい場合はこちら
+//		location = "https://fukuno.jig.jp/2355"
+
+		// ダイアログ形式で尋ねたい場合はこちら
+		if (confirm("区市町村オープンデータについてくわしく知りたい")) {
+			location = "https://fukuno.jig.jp/2749"
+		} else if (confirm("もういちど？")) {
+			location.reload()
+		}
+	}
+	// クイズスタート
+	startQuiz(title, quiz, callback)
+}
+</script>
+</head><body>
+
+<div id=head class=theme>第1問</div>
+<div id=main>
+	<!--<div id=ind class=indcorrect></div>-->
+	<div id=ind class=indcorrect>正解</div>
+	<!--<div id=ind class=indincorrect>不正解</div>-->
+	<div id=q>福島県磐梯町</div>
+	<div id=ans>
+		<div id=ans1>まち</div>
+		<div class=correct id=ans2>ちょう</div>
+	</div>
+</div>
+
+<div id=credit class=theme>
+	APP: <a href=https://fukuno.jig.jp/2753>CC BY fukuno.jig.jp - 2択クイズアプリ framework q2.js</a><br>
+	DATA: CC0 <a href=https://github.com/code4fukui/localgovjp>localgovjp - GitHub</a> by <a href=http://fukui.opendata.cc>Code for Fukui</a><br>
+</div>
+</body></html>

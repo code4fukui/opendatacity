@@ -1,0 +1,366 @@
+<!DOCTYPE html><html><head><meta charset='utf-8'/>
+<meta property="og:image" content="http://fukuno.jig.jp/app/opendatacity/opendata-kun.png">
+<link rel="apple-touch-icon" href="http://fukuno.jig.jp/app/opendatacity/opendata-kun.png"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, target-densitydpi=device-dpi">
+<title>オープンデータくんパズル3x3</title>
+<script src="https://fukuno.jig.jp/fukuno.js"></script>
+<script>"use strict";
+
+//	var CHANGE_INTERVAL = 10 * 1000;
+var CHANGE_INTERVAL = 0;
+//var PUZZLE_LEVEL = 3;
+var PUZZLE_LEVEL = 3;
+
+window.onload = function() {
+	init([{ img: "opendata-kun.png" }]);
+};
+var getValuesRDF = function(data) {
+	var res = [];
+	for (var i = 0; i < data.length; i++) {
+		var d = data[i];
+		var d2 = {};
+		for (var name in d) {
+			d2[name] = d[name].value;
+		}
+		res.push(d2);
+	}
+	return res;
+};
+//
+var currentpos = null;
+var gohere = function(lat, lng) {
+	if (currentpos == null) {
+		navigator.geolocation.getCurrentPosition(function(pos) {
+			currentpos.lat = pos.coords.latitude;
+			currentpos.lng = pos.coords.longitude;
+	//		dump(currentpos);
+			gohere(lat, lng);
+		}, function() {
+//			alert("現在位置が取得できませんでした");
+			window.open("https://maps.google.com/?ll=" + lat + "," + lng, "_blank");
+		});
+	} else {
+		window.open("https://www.google.com/maps/dir/" + currentpos.lat + "," + currentpos.lng + "/" + lat + "," + lng, "_blank");
+	}
+};
+//
+var tchg = null;
+var init = function(data) {
+	var d = data[rnd(data.length)];
+//		dump(d);
+//return;
+
+	var imgf = new Image();
+	imgf.src = d.img;
+	
+	var setTitle = function(d) {
+		var s = "";
+		if (d.name) {
+			s = d.name;
+			s += "<br><button onclick='javascript:gohere(" + d.lat + "," + d.lng + ")'>ココに行く</button>";
+		}
+		get("title").innerHTML = s;
+	};
+	var ff = function() {
+		var d = data[rnd(data.length)];
+//			dump(d);
+		var img2 = new Image();
+		img2.src = d.img;
+		img2.onload = function() {
+			var divs = get('pzl').getElementsByTagName("div");
+			for (var i = 0; i < divs.length; i++)
+				divs[i].style.backgroundImage = "url(" + this.src + ")";
+			setTitle(d);
+		};
+	};
+	imgf.onload = function() {
+		game(d.img, PUZZLE_LEVEL, function() {
+			if (CHANGE_INTERVAL > 0) {
+				if (tchg)
+					clearInterval(tchg);
+				tchg = setInterval(ff, CHANGE_INTERVAL);
+			}
+		});
+		setTitle(d);
+	};
+};
+var img;
+var game = function(imgurl, npw, nextf) {
+//	var imgurl = "mocha300x300.jpg";
+	
+	var start = new Date().getTime();
+	
+	// hash
+	var hash = document.location.hash;
+	if (hash.length > 0) {
+		var ss = hash.substring(1).split('&');
+		for (var i = 0; i < ss.length; i++) {
+			var s = ss[i];
+			if (s.startsWith("n=")) {
+				npw = parseInt(s.substring(2));
+			} else if (s.startsWith("img=")) {
+				imgurl = s.substring(4);
+			}
+		}
+	}
+	
+	img = new Image();
+	img.src = imgurl;
+	
+	var w = Math.min(window.innerHeight - 150, window.innerWidth);
+	if (isNaN(w) || w < 300)
+		w = 300;
+	
+	var pzl = get('pzl');
+	
+	pzl.style.width = w + "px";
+	pzl.style.height = w + "px";
+	pzl.style.lineHeight = 0;
+	pzl.style.position = 'relative';
+
+	var istouch = 'ontouchstart' in window;
+	var f = istouch ? 'touchstart' : 'mousedown';
+	
+	var np = Math.pow(npw, 2);
+	pzl.np = np;
+	var pw = w / npw >> 0;
+	for (var i = 0; i < np; i++) {
+		var x = i % npw;
+		var y = i / npw >> 0;
+		var div = create('div');
+		div.className = 'piece';
+		div.style.display = 'inline-block';
+		div.style.width = pw + "px";
+		div.style.height = pw + "px";
+		div.style.position = 'absolute';
+		div.style.left = (x * pw) + "px";
+		div.style.top = (y * pw) + "px";
+		div.style.backgroundImage = "url(" + imgurl + ")";
+		div.style.backgrondRepeat = "no-repeat";
+//		div.style.backgroundPosition = (-x * pw) + "px " + (-y * pw) + "px";
+		div.style.backgroundPosition = -(100 * x) + "% " + (-100 * y) + "%";
+//		div.style.backgroundSize = npw + "00%"; // ほんとはこれ
+		div.style.backgroundSize = "500%";
+		div.pid = i;
+		div.pzl = pzl;
+		div.addEventListener(f, function() {
+			var last = this.pzl.np - 1;
+			if (this.pid == last)
+				return;
+//			alert(this.pid);
+			var xy = this.pzl.find(this.pid);
+			var xy2 = this.pzl.find(last);
+			if (this.pzl.isNeighbor(xy, xy2)) {
+				this.pzl.exchange(this.pid, last);
+				if (this.pzl.isFinish()) {
+					this.pzl.childNodes[np - 1].style.display = "inline-block";
+					clearInterval(this.pzl.timeid);
+					setTimeout(function() {
+						var dt = (new Date().getTime() - startt) / 1000;
+						alert('congratulations!\nタイムは ' + dt + "秒でした");
+					}, 300);
+				}
+			}
+		}, false);
+		pzl.appendChild(div);
+//		alert(x + " " + y + " " + (x * pw) + " " + (y * pw));
+	}
+	var npzl = [];
+	for (var i = 0; i < npw; i++) {
+		npzl[i] = [];
+		for (var j = 0; j < npw; j++) {
+			npzl[i][j] = i + j * npw;
+		}
+	}
+	pzl.npzl = npzl;
+	pzl.isFinish = function() {
+		var npw = this.npw;
+		for (var i = 0; i < npw; i++) {
+			for (var j = 0; j < npw; j++) {
+				if (this.npzl[i][j] != i + j * npw)
+					return false;
+			}
+		}
+		return true;
+	};
+	pzl.npw = npw;
+	pzl.find = function(n) {
+		for (var i = 0; i < this.npw; i++) {
+			for (var j = 0; j < this.npw; j++) {
+				if (this.npzl[i][j] == n)
+					return [ i, j ];
+			}
+		}
+		return null;
+	};
+	pzl.isNeighbor = function(xy1, xy2) {
+		var dx = Math.abs(xy1[0] - xy2[0]);
+		var dy = Math.abs(xy1[1] - xy2[1]);
+		return dx + dy == 1;
+	};
+	
+	pzl.childNodes[np - 1].style.display = "none";
+	
+	pzl.exchange = function(n, m) {
+		var np = this.childNodes[n];
+		var mp = this.childNodes[m];
+		var x = np.style.left;
+		var y = np.style.top;
+		np.style.left = mp.style.left;
+		np.style.top = mp.style.top;
+		mp.style.left = x;
+		mp.style.top = y;
+		
+		var np = this.find(n);
+		var mp = this.find(m);
+		var tmp = this.npzl[np[0]][np[1]];
+		this.npzl[np[0]][np[1]] = this.npzl[mp[0]][mp[1]];
+		this.npzl[mp[0]][mp[1]] = tmp;
+		
+		/*
+		var s = [];
+		for (var i = 0; i < this.npw; i++) {
+			for (var j = 0; j < this.npw; j++) {
+				s.push(this.npzl[j][i]);
+				s.push(' ');
+			}
+			s.push('<br>');
+		}
+		debug(s.join(""));
+		*/
+	};
+	pzl.rnd = function(n) {
+		if (this.lastrnd == null)
+			return this.lastrnd = rnd(n);
+		if (rnd(this.npw * 2) == 0)
+			return this.lastrnd = (this.lastrnd + 1) % n;
+		return this.lastrnd;
+	};
+	pzl.setTransition = function(s) { // ex) 1s linear
+		for (var i = 0; i < this.childNodes.length; i++) {
+			var div = this.childNodes[i];
+			div.style.webkitTransition = "left " + s + ", top " + s;
+		}
+	};
+	pzl.getRandomStep = function(xy) {
+		var xy2 = [];
+		if (this.aim0) {
+			if (xy[0] == 0 && xy[1] == 0) {
+				this.aim0 = false;
+			}
+		} else {
+			if (xy[0] == this.npw - 1 && xy[1] == this.npw - 1) {
+				this.aim0 = true;
+			}
+		}
+		for (;;) {
+			var nd;
+			if (this.aim0) {
+				nd = rnd(2) * 3;
+			} else {
+				nd = rnd(2) + 1;
+			}
+//			var nd = this.rnddir(xy);
+			var dx = [ 0, 1, 0, -1 ][nd];
+			var dy = [ -1, 0, 1, 0 ][nd];
+			xy2[0] = xy[0] + dx;
+			xy2[1] = xy[1] + dy;
+			if (xy2[0] >= 0 && xy2[0] < this.npw && xy2[1] >= 0 && xy2[1] < this.npw)
+				return xy2;
+		}
+	};
+	pzl.random = function() {
+		this.setTransition("none");
+		this.aim0 = false;
+		this.nrnd = 40 * this.npw;
+		this.tid = setInterval(function() {
+			pzl.stepRandom();
+		}, 10);
+	};
+	pzl.stepRandom = function() {
+		if (this.nrnd == 0) {
+			clearInterval(this.tid);
+			
+			pzl.setTransition("0.15s ease-out");
+			pzl.starttime = new Date().getTime();
+			get('time').textContent = '00:00';
+			this.timeid = setInterval(function() {
+				var t = new Date().getTime();
+				var dt = (t - pzl.starttime) / 1000 >> 0;
+				if (dt > 99 * 60 + 59)
+					dt = 99 * 60 + 59;
+				get('time').textContent = fixnum(dt / 60 >> 0, 2) + ":" + fixnum(dt % 60, 2);
+			}, 1000);
+			nextf();
+			return;
+		}
+		var xy = this.find(this.np - 1);
+		var xy2 = this.getRandomStep(xy);
+//		alert(xy[0] + "x" + xy[1] + " -> " + xy2[0] + "x" + xy2[1]);
+		this.exchange(this.npzl[xy[0]][xy[1]], this.npzl[xy2[0]][xy2[1]]);
+		this.nrnd--;
+	};
+	pzl.random();
+};
+</script>
+<style>
+body {
+	margin: 0px;
+	text-align: center;
+}
+#main {
+	text-align: center;
+}
+#pzl {
+	display: inline-block;
+	background: #000;
+	width: 320px;
+	height: 320px;
+}
+#plz .piece {
+}
+#time {
+	font-size: 50px;
+	margin: 0px;
+	font-family: 'Supermercado One';
+}
+#title {
+	color: #000;
+	display: inline-block;
+	text-align: center;
+	width: 90%;
+	padding: 10px;
+	font-size: 30px;
+	font-weight: bold;
+	x-border: 3px solid gray;
+	x-background: #eea;
+}
+a {
+	color: gray !important;
+}
+.src {
+	margin: 10px;
+	font-size: 80%;
+}
+</style>
+
+</head>
+<body>
+
+<div id='main'>
+<div id='time'>00:00</div>
+<div id='pzl'></div>
+<div id='title'></div>
+</div>
+<!--<button id="retry">リトライ！</button><br>-->
+
+<div class="src">
+「オープンデータくんパズル」<br>
+日本の行政によるオープンデータ化を応援するキャラクターです → <a href=index.html target=_blank>日本のオープンデータ都市</a><br>
+<br>
+画像データ提供：<a href=http://www.data.go.jp/about-data-go-jp target=_blank>ロゴマークについて</a>（<a href=http://www.data.go.jp/ target=_blank>DATA GO JP</a>）<br>
+アプリ：<a href=https://creativecommons.org/licenses/by/2.1/jp/ target=_blank>CC BY</a> <a href=http://fukuno.jig.jp/967 target=_blank>福野泰介 一日一創</a><br>
+</div>
+
+</body>
+</html>

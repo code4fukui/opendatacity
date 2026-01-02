@@ -1,0 +1,152 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0"/>
+<link rel="apple-touch-icon" href="evangelist.png"/>
+<meta property="og:image" content="evangelist.png"/>
+<meta name="format-detection" content="telephone=no"/>
+<title>オープンデータ伝道師一覧</title>
+<script src="https://fukuno.jig.jp/fukuno2.js"></script>
+<script>"use strict"
+window.onload = async function() {
+	const key = '2PACX-1vTZ7GCTX0FFGIIaU3Sty2r9jZ1n4UMX02KU10C57oxuTc_dNhHn7VPDhMGF9Nr6Ffs5IK2G4GuFACOk'
+	const data = await fetchGoogleSpreadSheet(key)
+	
+	const items = []
+	let bkkey = null
+	const show = function() {
+		const key = searchbox.value
+		if (bkkey == key)
+			return
+		bkkey = key
+		clear(main)
+		document.location.hash = '#' + encodeURIComponent(key)
+	/*
+		https://schema.org/identifier: "1"
+		http://xmlns.com/foaf/0.1/#name: "丸田 之人"
+		name_yomi: "まるた ゆきと"
+		http://xmlns.com/foaf/0.1/#based_near: "北海道"
+		https://schema.org/description: "室蘭市役所職員として、北海道を拠点にオープンデータ施策や活用を積極的に推進。また、シンクライアントシステムや庁内ネットワーク等の構築も実施。"
+		organization: "室蘭市役所"
+	*/
+		for (const d of data) {
+			if (key) {
+				let flg = false
+				for (const name in d) {
+					if (d[name].indexOf(key) >= 0) {
+						flg = true
+						break
+					}
+				}
+				if (!flg)
+					continue
+			}
+			const div = create('div')
+			div.className = "item"
+			div.innerHTML = `
+				<h2><ruby>${d['http://xmlns.com/foaf/0.1/#name']}<rt>${d['name_yomi']}</rt></ruby></h2>
+				<div class=area>${d['http://xmlns.com/foaf/0.1/#based_near']}</div>
+				<div class=description>${d['https://schema.org/description']}</div>
+				<div class=id>所属 ${d['organization']}</div>
+				<div class=id>オープンデータ伝道師ID： ${d['https://schema.org/identifier']}</div>
+			`
+			div.querySelector('.area').onclick = function() {
+				searchbox.value = d['http://xmlns.com/foaf/0.1/#based_near']
+				show()
+			}
+			main.appendChild(div)
+		}
+	}
+	searchbox.onkeyup = searchbox.onchange = show
+	btnclear.onclick = function() {
+		searchbox.value = ''
+		show()
+	}
+	if (document.location.hash.length > 1) {
+		searchbox.value = decodeURIComponent(document.location.hash.substring(1))
+	}
+
+	show()
+}
+</script>
+<style>
+body {
+	font-family: sans-serif;
+	margin: 0;
+}
+input[type=text] {
+	width: 50vw;
+	margin: .5em .2em 0em 1em;
+	font-size: 24px;
+	border: 2px solid black;
+	line-height: 1.3em;
+	padding: 0.1em .3em;
+}
+button {
+	margin: .5em .2em 0em .2em;
+	font-size: 24px;
+	border: 2px solid black;
+	line-height: 1.3em;
+}
+h1 {
+	margin: 0;
+	padding: .3em;
+	background-color: #386;
+	color: white;
+	text-align: center;
+}
+h2 {
+	background-color: #386;
+	color: white;
+	padding: 1em .5em .5em .5em;
+	margin: 0;
+}
+.item {
+	border: 5px solid #333;
+	background-color: #f8fff8;
+	padding: .5em;
+	margin: 1em;
+	line-height: 1.8em;
+}
+.cat, .area {
+	display: inline-block;
+	border: 1px solid black;
+	padding: 0 .2em;
+	font-size: 80%;
+	margin: .5em 0;
+	line-height: 1.8em;
+	background-color: white;
+}
+.searchboxid {
+	text-align: center;
+}
+.description {
+}
+.place {
+}
+.dete {
+}
+#src {
+	margin: .5em;
+}
+a {
+	color: gray !important;
+}
+</style>
+</head>
+<body>
+
+<h1 id=title>オープンデータ伝道師</h1>
+<div class="searchboxid">
+<input type=text id=searchbox placeholder="フィルター"><button id=btnclear>クリア</button>
+</div>
+<div id="main"></div>
+
+<div id="src">
+DATA: CC BY <a href=https://cio.go.jp/sites/default/files/uploads/documents/opendata-dendoushi_ichiran.pptx>オープンデータ伝道師一覧(平成31年4月1日時点) - <a href=https://cio.go.jp/policy-opendata>政府CIOポータル</a> (<a href=https://docs.google.com/spreadsheets/d/1JQWrQ__zcmZvoQON1UuC26ehkQRruEyslwV01WZO_OY/edit#gid=0>SpreadSheet</a>)<br>
+vocabulary: <a href=http://xmlns.com/foaf/spec/>FOAF</a>, <a href=https://schema.org>schema.org</a><br>
+APP： CC BY <a href='https://fukuno.jig.jp/2763'>fukuno.jig.jp</a><br>
+</div>
+
+</div>
+
+</body>
+</html>

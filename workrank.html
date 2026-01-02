@@ -1,0 +1,233 @@
+<!DOCTYPE html><html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
+<title>就業ランキング - 2015年国勢調査版</title>
+<link rel="apple-touch-icon" href="workrank.png">
+<meta property="og:image" content="workrank.png">
+<meta name="format-detection" content="telephone=no">
+<script type="module">
+
+import { CSV } from "https://code4sabae.github.io/js/CSV.js";
+import { JAPAN_PREF } from "https://code4sabae.github.io/js/JAPAN_PREF.js";
+import tabularmaps from "./tabularmapsjapan.mjs";
+
+window.onload = async () => {
+	const data = await (await fetch("e-stat_go_jp/00320_00.csv")).text();
+	const csv = CSV.decode(data);
+	// 項目名に総数、男、女を追記
+	const cutAll = (s) => s.replace("（男女別）", "");
+	for (let i = 5, name = cutAll(csv[8][i]); i < csv[9].length; i++) {
+		if (i < csv[8].length && csv[8][i]) {
+			name = cutAll(csv[8][i]);
+		}
+		csv[9][i] = name + "_" + csv[9][i];
+	}
+	csv[9][4] = "地域名";
+	console.log(csv[9]);
+	// 上部をカットしてJSON化
+	const csv2 = csv.slice(9);
+	const json = CSV.toJSON(csv2);
+	console.log(json);
+
+	const update1 = "2015年国勢調査";
+	lastUpdate.textContent = "算出基準日: " + update1;
+
+	const addOption = (n) => {
+		const makeOpt = (n) => {
+			const opt = document.createElement("option");
+			opt.value = n;
+			opt.textContent = n;
+			return opt;
+		};
+		sel1.appendChild(makeOpt(n));
+		sel2.appendChild(makeOpt(n));
+	};
+	const shownames = Object.keys(json[0]).filter(p => p.indexOf("_") >= 0);
+	shownames.forEach(addOption);
+	//sel1.value = "総数（男女別）_役員";
+	sel1.selectedIndex = 5;
+	/*
+	"10", "※大項目", "地域コード", "地域識別コード", "地域名", 
+	"総数（男女別）_総数（従業上の地位）",
+	"総数（男女別）_雇用者",
+	"総数（男女別）_（雇用者）正規の職員・従業員",
+	"総数（男女別）_（雇用者）労働者派遣事業所の派遣社員",
+	"総数（男女別）_（雇用者）パート・アルバイト・その他",
+	"総数（男女別）_役員",
+	"総数（男女別）_雇人のある業主",
+	"総数（男女別）_雇人のない業主",
+	"総数（男女別）_家族従業者",
+	"総数（男女別）_家庭内職者",
+	"総数（男女別）_従業上の地位「不詳」",
+
+	"男_総数（従業上の地位）","男_雇用者", "男_（雇用者）正規の職員・従業員", "男_（雇用者）労働者派遣事業所の派遣社員", "男_（雇用者）パート・アルバイト・その他", "男_役員", "男_雇人のある業主", "男_雇人のない業主", "男_家族従業者", "男_家庭内職者", "男_従業上の地位「不詳」", "女_総数（従業上の地位）", "女_雇用者", "女_（雇用者）正規の職員・従業員", "女_（雇用者）労働者派遣事業所の派遣社員", "女_（雇用者）パート・アルバイト・その他", "女_役員", "女_雇人のある業主", "女_雇人のない業主", "女_家族従業者", "女_家庭内職者", "女_従業上の地位「不詳」"
+	*/
+	const show = () => {
+		const showname1 = sel1.value; // "総数（男女別）_役員";
+		const showname2 = sel2.value; // "総数（男女別）_役員";
+		const calcKPI = (p) => {
+			const v = s => {
+				const n = parseInt(p[s]);
+				return isNaN(n) ? 0 : n;
+			};
+			return v(showname1) / v(showname2) * 100;
+		};
+
+		// show ranking
+		ranking1.innerHTML = "<b>高いランキング</b>";
+		ranking2.innerHTML = "<b>低いランキング</b>";
+		// filter(p => p.地域名 !== "全国").
+		const list = json.map(p => [p.地域コード, p.地域名, calcKPI(p)]).sort((a, b) => a[2] - b[2]);
+		const addRank = (ranking, i, p) => {
+			const div = document.createElement("div");
+			const pref = JAPAN_PREF[Math.floor(p[0] / 1000) - 1] || "";
+			div.innerHTML = (i + 1) + "位 " + pref + " " + p[1] + " " + p[2].toFixed(2) + "%";
+			ranking.appendChild(div);
+		};
+		for (let i = 0; i < 10; i++) {
+			addRank(ranking1, i, list[list.length - 1 - i]);
+			addRank(ranking2, i, list[i]);
+		}
+		
+
+		const getKPI = (pname, cname) => {
+			if (pname === "日本") {
+				const p = json.find(a => a.地域識別コード === "a" && a.地域名 === cname);
+				const kpi = calcKPI(p);
+				return kpi;
+			} else {
+				const pref = pname;
+				const prefcode = JAPAN_PREF.indexOf(pname) + 1;
+				const p = json.find(a => Math.floor(a.地域コード / 1000) == prefcode && a.地域名.indexOf(cname) >= 0);
+				if (!p) {
+					return Math.NaN;
+				}
+				const kpi = calcKPI(p);
+				return kpi;
+			}
+		};
+		const colorTabularMaps = (pname, tmap) => {
+			let min = 100000;
+			let max = 0;
+			for (const c of tmap.children) {
+				const cname = c.cellname;
+				if (cname !== "-") {
+					const kpi = getKPI(pname, cname);
+					if (isNaN(kpi)) continue;
+					if (kpi < min) { min = kpi; }
+					if (kpi > max) { max = kpi; }
+				}
+			}
+			for (const c of tmap.children) {
+				const cname = c.cellname;
+				if (cname !== "-") {
+					const kpi = getKPI(pname, cname);
+					if (isNaN(kpi)) continue;
+					const n = (parseFloat(kpi) - min) / (max - min);
+					const h = 290;
+					const s = 80;
+					const l = 95 - n * 95 / 2;
+					const col = `hsl(${h},${s}%,${l}%)`;
+					//const col = `rgba(200,50,50,${l / 100 * .5})`;
+					c.style.backgroundColor = col;
+					c.style.color = n > .6 ? "white" : "black";
+					//c.appendChild(val);
+					//console.log(kpi, l, col);
+				}
+			}
+		};
+		const setCellContent = (c, pname, cname) => {
+			c.textContent = "";
+			const cr = tag => document.createElement(tag);
+			const div = cr("div");
+			div.className = "name";
+			div.textContent = cname;
+			c.appendChild(div);
+			const div2 = cr("div");
+			div2.className = "val";
+			const kpi = getKPI(pname, cname);
+			div2.textContent = (isNaN(kpi) ? "-" : kpi.toFixed(2)) + "%";
+			c.appendChild(div2);
+		};
+		tabularmaps.showJapan(setCellContent, colorTabularMaps);
+	};
+	show();
+	sel1.onchange = show;
+	sel2.onchange = show;
+};
+</script>
+<style>
+body {
+	font-family: sans-serif;
+	text-align: center;
+}
+h1 {
+	font-size: 3vw;
+	margin-top: 2vw;
+}
+/* tabularmaps */
+#tmapc span {
+	font-size: 2.0vmax;
+	align-items: center;
+	justify-content: center;
+	border-radius: .5vmax;
+	border: .1vmax solid #333;
+	padding: .2vmax .2vmax;
+	margin: .2vmax;
+}
+/* other */
+#tmtitle {
+	color: black;
+}
+#lastUpdate {
+	display: inline;
+}
+select {
+	font-size: 115%;
+	margin-bottom: .5vw;
+}
+.ranking {
+	display: inline-block;
+	width: 40vw;
+	text-align: left;
+	font-size: 110%;
+	padding: 1vw;
+	margin: .5vw;
+	border: .5vw solid #ccc;
+}
+#back {
+	display: none;
+	margin: 1vw;
+	padding: .5vw;
+}
+/* credit */
+.credit {
+	margin: 20px;
+	text-align: center;
+	font-size: 80%;
+}
+a {
+	color: #666 !important;
+}
+</style>
+</head>
+<body>
+
+<h1><span id=tmtitle>日本</span> 就業ランキング - 2015年国勢調査版</h1>
+
+<select id="sel1"></select> / <select id="sel2"></select><br>
+<div id="tmapc"></div>
+<div class="ranking" id="ranking1"></div>
+<div class="ranking" id="ranking2"></div>
+<br><div id=lastUpdate></div>
+（<a href="https://www.stat.go.jp/data/kokusei/2005/users/yougo/yougo4.html">用語解説、従業上の地位</a>）<br>
+<button id='back'>もどる</button>
+
+<div class="credit">
+APP: CC BY <a href=https://fukuno.jig.jp/2974>@taisukef 福野泰介</a> (Base APP: <a href=http://fukuno.jig.jp/2467>カラム地図で辿る</a>)<br>
+DATA: <a href="https://www.e-stat.go.jp/stat-search/files?page=1&layout=datalist&toukei=00200521&tstat=000001080615&cycle=0&tclass1=000001080576&stat_infid=000031377143">国勢調査 平成27年国勢調査 地域一覧</a> (<a href="e-stat_go_jp/00320_00.csv">UTF8-CSV化</a>)<br>
+LAYOUT: <a href=tabularmaps_japan.csv>TabularMaps Japan - 日本カラム地図 CSV</a> CC0 <a href=https://github.com/tabularmaps/hq>カラム地図 / TabularMaps on Github</a><br>
+LIB: <a href="https://github.com/code4sabae/js/">code4sabae-js</a> CC BY <a href="https://github.com/code4sabae/">Code for Sabae</a><br>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,277 @@
+<html>
+<head>
+<meta charset="utf-8"/>
+<title>日本のオープンデータ都市推移</title>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black"/>
+<link rel="apple-touch-icon" href="http://fukuno.jig.jp/app/opendatacity/transition.png"/>
+<meta property="og:image" content="http://fukuno.jig.jp/app/opendatacity/transition.png">
+<meta name="format-detection" content="telephone=no"/>
+<head>
+<script src=lib/fukuno.js></script>
+<script>"use strict";
+
+var getOpenDataCity = function(callback) {
+	var head = {
+		"name": "http://www.w3.org/2000/01/rdf-schema#label",
+		"lat": "http://www.w3.org/2003/01/geo/wgs84_pos#lat",
+		"lng": "http://www.w3.org/2003/01/geo/wgs84_pos#long",
+		"lod": "http://linkdata.org/property/rdf1s127i#lodfivestar",
+		"license": "http://purl.org/dc/terms/license",
+		"created": "http://purl.org/dc/terms/1.1/created",
+		"description": "http://purl.org/dc/elements/1.1/description",
+		"url": null
+	};
+	var query = "PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>\n"
+		+ "select ?url ?name ?lod ?lat ?lng ?created ?description ?license {\n"
+		+ "?s rdf:type <http://odp.jig.jp/odp/1.0#OpenDataCity>;\n"
+		+ "<http://schema.org/url> ?url;\n"
+		+ "<http://www.w3.org/2000/01/rdf-schema#label> ?name;\n"
+		+ "<http://purl.org/dc/terms/identifier> ?lod;\n"
+		+ "<http://www.w3.org/2003/01/geo/wgs84_pos#lat> ?lat;\n"
+		+ "<http://www.w3.org/2003/01/geo/wgs84_pos#long> ?lng;\n"
+		+ "<http://purl.org/dc/terms/created> ?created;\n"
+		+ "<http://purl.org/dc/terms/license> ?license;\n"
+		+ "<http://schema.org/description> ?description.\n"
+		+ "filter(lang(?name)='ja')\n"
+		+ "}";
+//	prompt(query);
+	var url = "https://sparql.odp.jig.jp/api/v1/sparql?query=" + encodeURIComponent(query) + "&output=json";
+	url += "&callback=" + getCallbackMethod(function(data) {
+		//	dump(data.results.bindings);
+		callback(sparqlres2rdf(data.results.bindings, head));
+	});
+	jsonp(url);
+	
+};
+var sparqlres2rdf = function(data, head) {
+	var rdf = {};
+	for (var i = 0; i < data.length; i++) {
+		var d = data[i];
+		var url = d.url.value;
+		var d2 = {};
+		for (var name in d) {
+			var n2 = head[name];
+			if (n2 != null)
+				d2[n2] = [ d[name] ];
+		}
+		rdf[url] = d2;
+	}
+	return rdf;
+};
+
+window.onload = function() {
+	getOpenDataCity(function(data) {
+		var csv = [];
+		csv.push([ "年", "数" ]);
+		
+		var countCity = function(afterd, befored, star) {
+			var ad = formatDate(afterd);
+			var bd = formatDate(befored);
+			var n = 0;
+			for (var d in data) {
+				var dd = data[d];
+				var date = rdf(dd, "http://purl.org/dc/terms/1.1/created");
+				var lod = rdf(dd, "http://linkdata.org/property/rdf1s127i#lodfivestar");
+				if (date >= ad && date < bd) {
+					if (!star || lod >= star)
+						n++;
+				}
+			}
+			return n;
+		};
+		
+		var sum = 0;
+		var sum5 = 0;
+		var date = new Date(Date.parse("2011/12/1"));
+		for (;;) {
+			var date0 = new Date(date.getTime());
+			var m = date.getMonth();
+			if (m == 11) {
+				date.setMonth(0);
+				date.setFullYear(date.getFullYear() + 1);
+			} else {
+				date.setMonth(m + 1);
+			}
+			// from date0 to date
+			var cnt = countCity(date0, date);
+			sum += cnt;
+			var cnt5 = countCity(date0, date, 5);
+			sum5 += cnt5;
+//			console.log(date.toLocaleString() + " " + cnt + " " + sum);
+			csv.push([ m == 0 ? formatDateYM(date0) : "", sum ]);
+			
+			//
+			if (date.getTime() > new Date().getTime()) {
+				break;
+			}
+		}
+		showGraph(csv);
+	});
+/*
+	var url = "http://linkdata.org/api/1/rdf1s127i/OPENDATA_Japan_rdf.json";
+	jsonp(url + "?callback=" + getCallbackMethod(function(data) {
+		init(data);
+	}));
+*/
+};
+var normalizeLicense = function(l) {
+	if (l.startsWith("http://creativecommons.org/licenses/by/2.1/"))
+		return "CC BY 2.1";
+	if (l.startsWith("http://creativecommons.org/licenses/by/3.0/"))
+		return "CC BY 3.0";
+	if (l.startsWith("http://creativecommons.org/licenses/by/4.0/"))
+		return "CC BY 4.0";
+	return "独自";
+};
+
+var rdf = function(d, name, lang) {
+	if (lang) {
+		for (var i = 0; i < d[name].length; i++) {
+			if (d[name][i].lang == lang)
+				return d[name][i].value;
+		}
+	}
+	return d[name][0].value;
+};
+var formatDate = function(d) {
+	return d.getFullYear() + "-" + fixnum(d.getMonth() + 1, 2) + "-" + fixnum(d.getDate(), 2);
+};
+var formatDateYM = function(d) {
+	return d.getFullYear() + "/" + fixnum(d.getMonth() + 1, 2);
+};
+
+// --
+/*
+var csv = [];
+csv.push([ "年", "数" ]);
+csv.push([ "1999", "30" ]);
+csv.push([ "2000", "33" ]);
+showGraph(csv);
+*/
+var showGraph = function(csv, px, py, enables) {
+//	dump(csv);
+	var c = get("canvas");
+	var g = getContext(c);
+	g.draw = function() {
+		g.setColor(255, 255, 255);
+		g.fillRect(0, 0, g.cw, g.ch);
+		var sw = 610;
+		var sh = 400;
+		var ox = 40;
+		var oy = 10;
+		
+		var min = 10000;
+		var max = -min;
+		var jn = csv[0].length;
+		var js = 1;
+		for (var j = js; j < jn; j++) {
+			if (enables && !enables[j])
+				continue;
+			for (var i = 1; i < csv.length; i++) {
+				var n = parseFloat(csv[i][j]);
+				if (n < min)
+					min = n;
+				else if (n > max)
+					max = n;
+			}
+		}
+		
+		var fh = 12;
+		g.setColor(200, 200, 200);
+		g.drawLine(ox, oy, sw, oy);
+		g.drawLine(ox, sh - oy * 2, sw, sh - oy * 2);
+		g.setColor(0, 0, 0);
+		g.fillText(min, 0, sh - oy);
+		g.fillText(max, 0, fh);
+		
+		var nw = csv.length - 1;
+		for (var i = 1; i < csv.length; i++) {
+			var n = csv[i][0];
+			var x = (sw - ox * 3) / (nw - 1) * (i - 1) + ox * 2;
+			if (i == py)
+				g.setColor(250, 100, 100);
+			else
+				g.setColor(200, 200, 200);
+			g.drawLine(x, 0, x, sh - oy);
+			g.setColor(0, 0, 0);
+			g.fillText(n, x, sh);
+		}
+
+		g.setColor(0, 0, 0);
+		g.drawLine(ox, sh - oy, ox, 0);
+		g.drawLine(ox, sh - oy, sw, sh - oy);
+
+		var nw = csv.length - 1;
+		for (var j = js; j < jn; j++) {
+			if (enables && !enables[j])
+				continue;
+			var bkx = -1;
+			var bky = -1;
+			if (j == px) {
+				g.setColor(250, 20, 20);
+				g.lineWidth = 3;
+			} else {
+				g.setColor(0, 0, 0);
+				g.lineWidth = 1;
+			}
+			for (var i = 1; i < csv.length; i++) {
+				var n = csv[i][j];
+				var x = (sw - ox * 3) / (nw - 1) * (i - 1) + ox * 2;
+				var y = (sh - oy * 2) - (n - min) / (max - min) * (sh - oy * 3);
+				if (bkx != -1)
+					g.drawLine(bkx, bky, x, y);
+				bkx = x;
+				bky = y;
+			//	alert(n);
+			}
+		}
+	};
+	g.init();
+};
+
+</script>
+<style>
+body {
+	font-family:'Lucida Grande','Hiragino Kaku Gothic ProN','ヒラギノ角ゴ ProN W3',Meiryo,メイリオ,sans-serif;
+	text-align: center;
+	margin: 0px;
+}
+#canvas {
+	width: 610px;
+	height: 400px;
+}
+/* credit */
+.credit {
+	margin: 20px;
+	text-align: center;
+}
+a {
+	color: gray !important;
+}
+#debug {
+	text-align: left;
+}
+</style>
+</head>
+<body>
+
+<h1><a href=puzzle3x3.html target=_blank><img src=opendata-kun-mini.png width=80 height=80 align=center></a>日本のオープンデータ都市推移</h1>
+
+<canvas id="canvas"></canvas>
+
+<div class=credit>
+DATA: CC BY <a href=http://sparql.odp.jig.jp/ target=_blank>日本のオープンデータ都市一覧 - odp SPARQL Endpoint</a><br>
+画像データ提供：<a href=http://www.data.go.jp/about-data-go-jp target=_blank>ロゴマークについて</a>（<a href=http://www.data.go.jp/ target=_blank>DATA GO JP</a>）<br>
+APP: CC BY <a href=http://fukuno.jig.jp/990 target=_blank>福野泰介の一日一創</a><br>
+</div>
+<div class=related>
+関連リンク<br>
+<a href=https://docs.google.com/a/jig.jp/forms/d/1iM1t3L8mJKYPFgNP816q7W30UI_ouQD7oCAU5TJYSPk/viewform>オープンデータ都市登録フォーム</a><br>
+<a href=history.html>オープンデータ都市変遷</a><br>
+<a href=index.html>オープンデータ都市一覧</a><br>
+</div>
+</div>
+
+</body>
+</html>
